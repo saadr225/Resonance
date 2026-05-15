@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - manifests.yaml
+
+images:
+  - name: media-server
+    newName: media-server
+    newTag: latest
+  - name: audio-chunker
+    newName: audio-chunker
+    newTag: latest
+  - name: ai-pipeline
+    newName: ai-pipeline
+    newTag: latest
+  - name: insight-pusher
+    newName: insight-pusher
+    newTag: latest
+  - name: session-api
+    newName: session-api
+    newTag: latest
+  - name: client
+    newName: client
+    newTag: latest

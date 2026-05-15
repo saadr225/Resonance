@@ -1,0 +1,297 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: resonance-config
+data:
+  REDIS_URL: "redis://resonance-redis:6379"
+  POSTGRES_DSN: "postgresql://resonance:secret@resonance-postgres:5432/resonance"
+  AI_PIPELINE_ADDR: "resonance-ai-pipeline:50052"
+  SESSION_SCAN_INTERVAL_SECONDS: "2"
+  WHISPER_MODEL: "base.en"
+  LLM_PROVIDER: "openrouter"
+  OPENROUTER_MODEL: "deepseek/deepseek-v4-flash:free"
+  ANALYSIS_INTERVAL: "60"
+  AUDIO_STREAM_MAXLEN: "1200"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: resonance-secrets
+type: Opaque
+stringData:
+  POSTGRES_USER: "resonance"
+  POSTGRES_PASSWORD: "secret"
+  JWT_SECRET: "prod-secret-replace-me"
+  OPENROUTER_API_KEY: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resonance-postgres
+spec:
+  selector:
+    matchLabels:
+      app: resonance-postgres
+  template:
+    metadata:
+      labels:
+        app: resonance-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_DB
+              value: "resonance"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: resonance-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: resonance-secrets
+                  key: POSTGRES_PASSWORD
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: init-sql
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+      volumes:
+        - name: init-sql
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resonance-postgres
+spec:
+  ports:
+    - port: 5432
+  selector:
+    app: resonance-postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resonance-redis
+spec:
+  selector:
+    matchLabels:
+      app: resonance-redis
+  template:
+    metadata:
+      labels:
+        app: resonance-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resonance-redis
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: resonance-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-server
+spec:
+  selector:
+    matchLabels:
+      app: media-server
+  template:
+    metadata:
+      labels:
+        app: media-server
+    spec:
+      # WEBRTC STRATEGY: Using hostNetwork to simplify UDP port mapping (9000-9100) 
+      # and ICE traversal in local/k8s dev without exhausting NodePorts or requiring LoadBalancers.
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: media-server
+          image: media-server:latest
+          envFrom:
+            - configMapRef:
+                name: resonance-config
+            - secretRef:
+                name: resonance-secrets
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-server
+spec:
+  ports:
+    - port: 8080
+  selector:
+    app: media-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-pipeline
+spec:
+  selector:
+    matchLabels:
+      app: ai-pipeline
+  template:
+    metadata:
+      labels:
+        app: ai-pipeline
+    spec:
+      containers:
+        - name: ai-pipeline
+          image: ai-pipeline:latest
+          envFrom:
+            - configMapRef:
+                name: resonance-config
+            - secretRef:
+                name: resonance-secrets
+          ports:
+            - containerPort: 50052
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resonance-ai-pipeline
+spec:
+  ports:
+    - port: 50052
+  selector:
+    app: ai-pipeline
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audio-chunker
+spec:
+  selector:
+    matchLabels:
+      app: audio-chunker
+  template:
+    metadata:
+      labels:
+        app: audio-chunker
+    spec:
+      containers:
+        - name: audio-chunker
+          image: audio-chunker:latest
+          envFrom:
+            - configMapRef:
+                name: resonance-config
+            - secretRef:
+                name: resonance-secrets
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: insight-pusher
+spec:
+  selector:
+    matchLabels:
+      app: insight-pusher
+  template:
+    metadata:
+      labels:
+        app: insight-pusher
+    spec:
+      containers:
+        - name: insight-pusher
+          image: insight-pusher:latest
+          envFrom:
+            - configMapRef:
+                name: resonance-config
+            - secretRef:
+                name: resonance-secrets
+          ports:
+            - containerPort: 8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: insight-pusher
+spec:
+  ports:
+    - port: 8082
+  selector:
+    app: insight-pusher
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session-api
+spec:
+  selector:
+    matchLabels:
+      app: session-api
+  template:
+    metadata:
+      labels:
+        app: session-api
+    spec:
+      containers:
+        - name: session-api
+          image: session-api:latest
+          envFrom:
+            - configMapRef:
+                name: resonance-config
+            - secretRef:
+                name: resonance-secrets
+          ports:
+            - containerPort: 8083
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: session-api
+spec:
+  ports:
+    - port: 8083
+  selector:
+    app: session-api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+spec:
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+        - name: client
+          image: client:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: client
+spec:
+  type: NodePort
+  ports:
+    - port: 80
+      nodePort: 30080
+  selector:
+    app: client

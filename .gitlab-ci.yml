@@ -81,12 +81,29 @@ build-images:
           docker push "$CI_REGISTRY_IMAGE/$service:latest"
         fi
       done
+      # Build static client
+      docker build -f client/Dockerfile -t "$CI_REGISTRY_IMAGE/client:$CI_COMMIT_SHA" client
+      docker push "$CI_REGISTRY_IMAGE/client:$CI_COMMIT_SHA"
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$CI_REGISTRY_IMAGE/client:$CI_COMMIT_SHA" "$CI_REGISTRY_IMAGE/client:latest"
+        docker push "$CI_REGISTRY_IMAGE/client:latest"
+      fi
 
 deploy:
   stage: deploy
-  image: alpine:3.20
+  image: alpine/k8s:1.30.2
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
   script:
-    - echo "Add environment-specific deployment here when a target is selected."
+    - echo "Deploying to Kubernetes using cluster agent..."
+    - # kubectl config use-context <your-gitlab-k8s-agent-context>
+    - cd infra/k8s
+    - kubectl create configmap postgres-init --from-file=../postgres/init.sql -o yaml --dry-run=client | kubectl apply -f -
+    - kustomize edit set image media-server=$CI_REGISTRY_IMAGE/media-server:$CI_COMMIT_SHA
+    - kustomize edit set image audio-chunker=$CI_REGISTRY_IMAGE/audio-chunker:$CI_COMMIT_SHA
+    - kustomize edit set image ai-pipeline=$CI_REGISTRY_IMAGE/ai-pipeline:$CI_COMMIT_SHA
+    - kustomize edit set image insight-pusher=$CI_REGISTRY_IMAGE/insight-pusher:$CI_COMMIT_SHA
+    - kustomize edit set image session-api=$CI_REGISTRY_IMAGE/session-api:$CI_COMMIT_SHA
+    - kustomize edit set image client=$CI_REGISTRY_IMAGE/client:$CI_COMMIT_SHA
+    - kubectl apply -k .

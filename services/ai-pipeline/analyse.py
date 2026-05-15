@@ -75,7 +75,9 @@ class AnthropicAnalyzer:
             model=self._model,
             max_tokens=512,
             system=(
-                "Return only valid JSON with exactly three keys: summary (string), action_items (array of strings), and sentiment (string). "\n                        "The sentiment value MUST be exactly one word: positive, neutral, or negative. "\n                        "The action_items value MUST be a list of strings, or an empty list [] if there are none. Do not return a string for action_items."
+                "Return only valid JSON with exactly three keys: summary (string), action_items (array of strings), and sentiment (string). \n"
+                "The sentiment value MUST be exactly one word: positive, neutral, or negative. \n"
+                "The action_items value MUST be a list of strings, or an empty list [] if there are none. Do not return a string for action_items."
             ),
             messages=[{"role": "user", "content": f"Meeting transcript window:\n{transcript}"}],
         )
@@ -98,7 +100,9 @@ class OpenAIAnalyzer:
                 {
                     "role": "system",
                     "content": (
-                        "Return only valid JSON with exactly three keys: summary (string), action_items (array of strings), and sentiment (string). "\n                        "The sentiment value MUST be exactly one word: positive, neutral, or negative. "\n                        "The action_items value MUST be a list of strings, or an empty list [] if there are none. Do not return a string for action_items."
+                        "Return only valid JSON with exactly three keys: summary (string), action_items (array of strings), and sentiment (string). \n"
+                        "The sentiment value MUST be exactly one word: positive, neutral, or negative. \n"
+                        "The action_items value MUST be a list of strings, or an empty list [] if there are none. Do not return a string for action_items."
                     ),
                 },
                 {"role": "user", "content": f"Meeting transcript window:\n{transcript}"},
@@ -131,7 +135,9 @@ class OpenRouterAnalyzer:
                 {
                     "role": "system",
                     "content": (
-                        "Return only valid JSON with exactly three keys: summary (string), action_items (array of strings), and sentiment (string). "\n                        "The sentiment value MUST be exactly one word: positive, neutral, or negative. "\n                        "The action_items value MUST be a list of strings, or an empty list [] if there are none. Do not return a string for action_items."
+                        "Return only valid JSON with exactly three keys: summary (string), action_items (array of strings), and sentiment (string). \n"
+                        "The sentiment value MUST be exactly one word: positive, neutral, or negative. \n"
+                        "The action_items value MUST be a list of strings, or an empty list [] if there are none. Do not return a string for action_items."
                     ),
                 },
                 {"role": "user", "content": f"Meeting transcript window:\n{transcript}"},
