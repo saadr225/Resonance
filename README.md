@@ -29,7 +29,7 @@ flowchart LR
 - `ai-pipeline`: gRPC server with faster-whisper transcription and `mock|openrouter|anthropic|openai` analyzer adapters.
 - `insight-pusher`: authenticated WebSocket fan-out for `insights:*` and `transcripts:*`, with Postgres persistence.
 - `session-api`: FastAPI + Strawberry GraphQL auth, room management, and historical queries.
-- `client`: static browser demo for account, room, microphone, transcript, summary, action items, and sentiment.
+- `client`: static browser demo for account, room, microphone, transcript, summary, action items, and sentiment, bundled via an Nginx container.
 
 ## Local Setup
 
@@ -95,10 +95,38 @@ This repo uses `.gitlab-ci.yml`, not GitHub Actions. The pipeline stages are:
 - `lint`: Ruff over `services`.
 - `test`: pytest over service tests with Redis and Postgres service containers available.
 - `proto`: validates the gRPC proto compiles.
-- `build`: builds and pushes service images to the GitLab Container Registry.
-- `deploy`: manual placeholder until a deployment target is chosen.
+- `build`: builds and pushes backend and client images to the GitLab Container Registry.
+- `deploy`: manual stage that deploys the manifests to a Kubernetes cluster using Kustomize.
 
 Images are pushed as `$CI_REGISTRY_IMAGE/<service>:$CI_COMMIT_SHA`; `latest` is pushed only from the default branch.
+
+## Kubernetes Deployment
+
+The platform is fully scaffolded for Kubernetes deployment using Kustomize (`infra/k8s/`).
+
+**Networking Strategy:**
+- **WebRTC:** The `media-server` Deployment uses `hostNetwork: true` to bind directly to the node's IP. This simplifies UDP ICE traversal for WebRTC without exhausting NodePorts or requiring complex LoadBalancer setups.
+- **Standard Routing:** All other backend services use standard `ClusterIP` services. The frontend `client` leverages a `NodePort` mapping.
+
+**Local Cluster Testing:**
+If using a local cluster like Docker Desktop Kubernetes or Kind, you can manually build and apply the deployment:
+
+```bash
+# 1. Build images tagged as "latest"
+# 2. Apply database initialization ConfigMap
+kubectl create configmap postgres-init --from-file=infra/postgres/init.sql
+
+# 3. Deploy everything
+kubectl apply -k infra/k8s
+```
+
+To access the cluster locally from your browser, you must port-forward the external-facing services:
+```bash
+kubectl port-forward svc/client 30080:80
+kubectl port-forward svc/session-api 8083:8083
+kubectl port-forward svc/media-server 8080:8080
+kubectl port-forward svc/insight-pusher 8082:8082
+```
 
 ## Demo Acceptance Path
 
