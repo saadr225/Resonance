@@ -1,0 +1,92 @@
+stages:
+  - lint
+  - test
+  - proto
+  - build
+  - deploy
+
+variables:
+  PYTHON_VERSION: "3.12"
+  DOCKER_TLS_CERTDIR: "/certs"
+  SERVICE_LIST: "media-server audio-chunker ai-pipeline insight-pusher session-api"
+
+.python-job:
+  image: python:${PYTHON_VERSION}-slim
+  before_script:
+    - python --version
+    - pip install --upgrade pip
+
+lint:
+  extends: .python-job
+  stage: lint
+  script:
+    - pip install ruff==0.8.6
+    - ruff check services tests
+
+test:
+  extends: .python-job
+  stage: test
+  services:
+    - name: redis:7-alpine
+      alias: redis
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: resonance
+    POSTGRES_USER: resonance
+    POSTGRES_PASSWORD: secret
+    REDIS_URL: redis://redis:6379
+    POSTGRES_DSN: postgresql://resonance:secret@postgres:5432/resonance
+    JWT_SECRET: ci-secret
+    LLM_PROVIDER: mock
+  script:
+    - apt-get update
+    - apt-get install -y --no-install-recommends ffmpeg libopus0 libvpx9
+    - rm -rf /var/lib/apt/lists/*
+    - for service in $SERVICE_LIST; do pip install -r services/$service/requirements.txt; done
+    - pytest -v
+
+proto-check:
+  extends: .python-job
+  stage: proto
+  script:
+    - pip install grpcio-tools
+    - python -m grpc_tools.protoc -I proto --python_out=/tmp --grpc_python_out=/tmp proto/resonance.proto
+
+build-images:
+  image: docker:27
+  stage: build
+  services:
+    - name: docker:27-dind
+      alias: docker
+  needs:
+    - lint
+    - test
+    - proto-check
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    - |
+      for service in $SERVICE_LIST; do
+        docker build -f services/$service/Dockerfile \
+          -t "$CI_REGISTRY_IMAGE/$service:$CI_COMMIT_SHA" .
+        docker push "$CI_REGISTRY_IMAGE/$service:$CI_COMMIT_SHA"
+        if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+          docker tag "$CI_REGISTRY_IMAGE/$service:$CI_COMMIT_SHA" "$CI_REGISTRY_IMAGE/$service:latest"
+          docker push "$CI_REGISTRY_IMAGE/$service:latest"
+        fi
+      done
+
+deploy:
+  stage: deploy
+  image: alpine:3.20
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  script:
+    - echo "Add environment-specific deployment here when a target is selected."

@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+htmlcov/
+.coverage
+resonance_pb2.py
+resonance_pb2_grpc.py
+node_modules/

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package resonance;
+
+message AudioChunk {
+  string session_id = 1;
+  string speaker_id = 2;
+  bytes pcm_data = 3;      // 16-bit little-endian, 48 kHz mono PCM.
+  int64 timestamp = 4;     // Unix milliseconds.
+  int32 duration_ms = 5;   // MVP default: 3000.
+}
+
+message TranscriptFragment {
+  string session_id = 1;
+  string speaker_id = 2;
+  string text = 3;
+  float confidence = 4;
+  int64 ts_start = 5;
+  int64 ts_end = 6;
+}
+
+message InsightUpdate {
+  string session_id = 1;
+  string summary = 2;
+  repeated string action_items = 3;
+  string sentiment = 4;    // positive|neutral|negative
+  int64 generated_at = 5;
+}
+
+service AudioProcessor {
+  rpc ProcessStream(stream AudioChunk) returns (stream TranscriptFragment);
+}

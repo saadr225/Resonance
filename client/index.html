@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Resonance</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>Resonance</h1>
+          <p id="status">Offline</p>
+        </div>
+        <div class="endpoint-grid">
+          <label>
+            Session API
+            <input id="sessionApi" value="http://localhost:8083" />
+          </label>
+          <label>
+            Media
+            <input id="mediaApi" value="http://localhost:8080" />
+          </label>
+          <label>
+            WebSocket
+            <input id="wsApi" value="ws://localhost:8082" />
+          </label>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <aside class="panel control-panel">
+          <form id="authForm" class="stack">
+            <h2>Account</h2>
+            <input id="email" type="email" placeholder="email@example.com" autocomplete="email" required />
+            <input id="password" type="password" placeholder="Password" autocomplete="current-password" required />
+            <div class="button-row">
+              <button type="submit" data-auth="login">Login</button>
+              <button type="submit" data-auth="register">Register</button>
+            </div>
+          </form>
+
+          <div class="stack">
+            <h2>Room</h2>
+            <input id="roomTitle" placeholder="Weekly product sync" />
+            <button id="createRoom">Create Room</button>
+            <input id="inviteToken" placeholder="Invite token" />
+            <input id="displayName" placeholder="Display name" />
+            <button id="joinRoom">Join Room</button>
+          </div>
+
+          <div class="stack session-box">
+            <h2>Current Session</h2>
+            <dl>
+              <dt>ID</dt>
+              <dd id="sessionId">None</dd>
+              <dt>Invite</dt>
+              <dd id="activeInvite">None</dd>
+            </dl>
+            <button id="startCall">Start Audio</button>
+            <button id="stopCall" class="secondary">Stop</button>
+          </div>
+        </aside>
+
+        <section class="main-grid">
+          <section class="panel summary-panel">
+            <div class="panel-header">
+              <h2>Live Summary</h2>
+              <span id="sentiment" class="sentiment">neutral</span>
+            </div>
+            <p id="summary">Waiting for insight updates.</p>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Action Items</h2>
+              <span id="actionCount">0</span>
+            </div>
+            <ul id="actions" class="action-list"></ul>
+          </section>
+
+          <section class="panel transcript-panel">
+            <div class="panel-header">
+              <h2>Transcript</h2>
+              <span id="transcriptCount">0</span>
+            </div>
+            <ol id="transcript" class="transcript"></ol>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

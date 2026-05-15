@@ -1,0 +1,172 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: resonance
+      POSTGRES_USER: resonance
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resonance -d resonance"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  media-server:
+    build:
+      context: ..
+      dockerfile: services/media-server/Dockerfile
+    ports:
+      - "8080:8080"
+      - "9000-9100:9000-9100/udp"
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_DSN: postgresql://resonance:secret@postgres:5432/resonance
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      TURN_SERVER_URL: ${TURN_SERVER_URL:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  ai-pipeline:
+    build:
+      context: ..
+      dockerfile: services/ai-pipeline/Dockerfile
+    ports:
+      - "50052:50052"
+    environment:
+      REDIS_URL: redis://redis:6379
+      WHISPER_MODEL: ${WHISPER_MODEL:-base.en}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  audio-chunker:
+    build:
+      context: ..
+      dockerfile: services/audio-chunker/Dockerfile
+    environment:
+      AI_PIPELINE_ADDR: ai-pipeline:50052
+      REDIS_URL: redis://redis:6379
+      SESSION_SCAN_INTERVAL_SECONDS: 2
+    depends_on:
+      redis:
+        condition: service_healthy
+      ai-pipeline:
+        condition: service_started
+
+  insight-pusher:
+    build:
+      context: ..
+      dockerfile: services/insight-pusher/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_DSN: postgresql://resonance:secret@postgres:5432/resonance
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  session-api:
+    build:
+      context: ..
+      dockerfile: services/session-api/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      POSTGRES_DSN: postgresql://resonance:secret@postgres:5432/resonance
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  client:
+    image: nginx:1.27-alpine
+    ports:
+      - "8088:80"
+    volumes:
+      - ../client:/usr/share/nginx/html:ro
+    profiles:
+      - demo
+
+  integration-runner:
+    image: python:3.12-slim
+    profiles:
+      - integration
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:ro
+    command: ["python", "-m", "pytest", "tests/integration", "-v"]
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_DSN: postgresql://resonance:secret@postgres:5432/resonance
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  lint-runner:
+    image: python:3.12-slim
+    profiles:
+      - tooling
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:ro
+    command:
+      [
+        "bash",
+        "-lc",
+        "python -m pip install --upgrade pip && pip install --no-cache-dir ruff==0.8.6 && ruff check --no-cache services tests",
+      ]
+
+  test-runner:
+    image: python:3.12-slim
+    profiles:
+      - tooling
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace:ro
+    environment:
+      REDIS_URL: redis://redis:6379
+      POSTGRES_DSN: postgresql://resonance:secret@postgres:5432/resonance
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      LLM_PROVIDER: mock
+      WHISPER_MODEL: mock
+      PYTHONDONTWRITEBYTECODE: "1"
+    command:
+      [
+        "bash",
+        "-lc",
+        "apt-get update && apt-get install -y --no-install-recommends ffmpeg libopus0 libvpx9 && rm -rf /var/lib/apt/lists/* && python -m pip install --upgrade pip && for req in services/*/requirements.txt; do pip install --no-cache-dir -r $$req; done && pytest -p no:cacheprovider -v",
+      ]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
