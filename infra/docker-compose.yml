@@ -39,6 +39,7 @@ services:
       TURN_SERVER_URL: ${TURN_SERVER_URL:-}
       TURN_USERNAME: ${TURN_USERNAME:-}
       TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+      AUDIO_STREAM_MAXLEN: ${AUDIO_STREAM_MAXLEN:-1200}
     depends_on:
       redis:
         condition: service_healthy
@@ -54,10 +55,14 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       WHISPER_MODEL: ${WHISPER_MODEL:-base.en}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
+      WHISPER_COMPUTE_TYPE: ${WHISPER_COMPUTE_TYPE:-int8}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-deepseek/deepseek-v4-flash:free}
+      ANALYSIS_INTERVAL: ${ANALYSIS_INTERVAL:-60}
     depends_on:
       redis:
         condition: service_healthy
@@ -70,6 +75,8 @@ services:
       AI_PIPELINE_ADDR: ai-pipeline:50052
       REDIS_URL: redis://redis:6379
       SESSION_SCAN_INTERVAL_SECONDS: 2
+      AUDIO_CLAIM_IDLE_MS: ${AUDIO_CLAIM_IDLE_MS:-30000}
+      AUDIO_CLAIM_BATCH: ${AUDIO_CLAIM_BATCH:-20}
     depends_on:
       redis:
         condition: service_healthy

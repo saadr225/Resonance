@@ -1,5 +1,5 @@
 PYTHON ?= python
-COMPOSE ?= docker compose -f infra/docker-compose.yml
+COMPOSE ?= docker compose --env-file .env -f infra/docker-compose.yml
 SERVICES := media-server audio-chunker ai-pipeline insight-pusher session-api
 
 .PHONY: proto up up-demo down logs lint test build

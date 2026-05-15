@@ -26,7 +26,7 @@ flowchart LR
 
 - `media-server`: FastAPI + aiortc WebRTC signaling (WebSocket + trickle ICE) and server-side PCM tap into Redis streams.
 - `audio-chunker`: Redis consumer-group worker that sends `AudioChunk` messages to the AI gRPC service.
-- `ai-pipeline`: gRPC server with faster-whisper transcription and `mock|anthropic|openai` analyzer adapters.
+- `ai-pipeline`: gRPC server with faster-whisper transcription and `mock|openrouter|anthropic|openai` analyzer adapters.
 - `insight-pusher`: authenticated WebSocket fan-out for `insights:*` and `transcripts:*`, with Postgres persistence.
 - `session-api`: FastAPI + Strawberry GraphQL auth, room management, and historical queries.
 - `client`: static browser demo for account, room, microphone, transcript, summary, action items, and sentiment.
@@ -37,19 +37,21 @@ flowchart LR
 2. Start the backend stack:
 
 ```bash
-docker compose -f infra/docker-compose.yml up --build
+docker compose --env-file .env -f infra/docker-compose.yml up --build
 ```
+
+Note: because the Compose file lives under `infra/`, Docker Compose will otherwise look for `infra/.env` by default.
 
 3. Start the browser demo as well:
 
 ```bash
-docker compose -f infra/docker-compose.yml --profile demo up --build
+docker compose --env-file .env -f infra/docker-compose.yml --profile demo up --build
 ```
 
 4. Open `http://localhost:8088`.
 5. Register or log in, create a room, start audio, then open a second browser window and join with the invite token.
 
-For a lightweight local demo without an LLM key, keep `LLM_PROVIDER=mock`. For a faster no-model smoke test, set `WHISPER_MODEL=mock`; for the intended transcription path, use `WHISPER_MODEL=base.en` or `small.en`.
+For a lightweight local demo without an LLM key, keep `LLM_PROVIDER=mock`. For OpenRouter + DeepSeek, set `LLM_PROVIDER=openrouter` and `OPENROUTER_API_KEY` (optionally `OPENROUTER_MODEL`). If you're using free OpenRouter models, increase `ANALYSIS_INTERVAL` if you hit rate limits. For a faster no-model smoke test, set `WHISPER_MODEL=mock`; for the intended transcription path, use `WHISPER_MODEL=base.en` or `small.en`.
 
 ## Environment
 
@@ -57,9 +59,13 @@ For a lightweight local demo without an LLM key, keep `LLM_PROVIDER=mock`. For a
 - `POSTGRES_DSN`: Postgres connection string.
 - `JWT_SECRET`: shared HMAC secret for Session API, media server, and WebSocket auth.
 - `WHISPER_MODEL`: `base.en`, `small.en`, or `mock`.
-- `LLM_PROVIDER`: `mock`, `anthropic`, or `openai`.
+- `LLM_PROVIDER`: `mock`, `openrouter`, `anthropic`, or `openai`.
 - `ANTHROPIC_API_KEY`: required when `LLM_PROVIDER=anthropic`.
 - `OPENAI_API_KEY`: required when `LLM_PROVIDER=openai`.
+- `OPENROUTER_API_KEY`: required when `LLM_PROVIDER=openrouter`.
+- `OPENROUTER_MODEL`: OpenRouter model id (default: `deepseek/deepseek-v4-flash:free`).
+- `ANALYSIS_INTERVAL`: seconds between LLM insight updates per session (default: `60`).
+- `HF_TOKEN`: optional Hugging Face token to avoid model download rate limits.
 - `TURN_SERVER_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL`: optional ICE config for WebRTC NAT traversal (comma-separated `stun:`/`turn:` URLs). This is shared by the media server and the demo client.
 - `AUDIO_STREAM_MAXLEN`: maximum entries retained per `audio:{session_id}` Redis stream (approximate trim).
 - `AUDIO_CLAIM_IDLE_MS`, `AUDIO_CLAIM_BATCH`: Redis Stream pending-entry reclaim settings for the audio chunker.
